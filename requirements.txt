@@ -1,4 +1,6 @@
-thefuzz
+thefuzz[speedup]~=0.19.0
 PyAudio
 SpeechRecognition
-pyttsx3
+pyttsx3~=2.90
+
+opencv-python~=4.4.0.46

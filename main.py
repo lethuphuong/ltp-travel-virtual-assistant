@@ -4,9 +4,12 @@ Put together
     - Listen to the question and find the most suitable answer.
     If you can't find the answer, say "I don't know".
 """
+import multiprocessing
+
 import speech_recognition as sr
 import pyttsx3
 from thefuzz import fuzz
+import cv2
 
 
 def read_file(filename):
@@ -36,10 +39,22 @@ def say(text):
     engine.runAndWait()
 
 
-if __name__ == '__main__':
+is_running = False
+engine = pyttsx3.init()
+
+
+def reset():
+    global is_running
+    is_running = False
+    print(is_running)
+
+
+def communicate_with():
+    global is_running
+    global engine
+    if is_running:
+        return
     recognizer = sr.Recognizer()
-    microphone = sr.Microphone()
-    engine = pyttsx3.init()
 
     questions = read_file('data/question.txt')
     answers = read_file('data/answer.txt')
@@ -51,6 +66,7 @@ if __name__ == '__main__':
             print("Listening")
             audio = recognizer.listen(source, timeout=8)
             try:
+                say("Just a moment!")
                 question = recognizer.recognize_google(audio, language='en')
                 print(question)
                 answer = find_answer(question, questions, answers)
@@ -62,8 +78,40 @@ if __name__ == '__main__':
                 print(question)
                 if 'ye' not in question.lower():
                     say("Bye. Have a good time!")
+                    is_running = False
                     break
             except sr.UnknownValueError:
                 print("Don't know!!!")
             except sr.RequestError:
                 print("Network Error!!!")
+        reset()
+
+
+if __name__ == '__main__':
+    cap = cv2.VideoCapture(0)
+    detector = cv2.CascadeClassifier('data/haarcascade_frontalface_default.xml')
+    th = None
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = detector.detectMultiScale(gray, scaleFactor=1.12, minNeighbors=15, minSize=(100, 100))
+
+        if (th is not None) and (not th.is_alive()):
+            is_running = False
+
+        if len(faces) > 0 and (not is_running):
+            is_running = True
+            th = multiprocessing.Process(target=communicate_with)
+            th.start()
+
+        for x, y, w, h in faces:
+            cv2.rectangle(frame, pt1=(x, y), pt2=(x + w, y + h), color=(0, 255, 0), thickness=2)
+        cv2.imshow('frame', frame)
+        key = cv2.waitKey(3)
+        if (key & 0xFF) == ord('q'):
+            if th is not None:
+                th.terminate()
+            break
+    cv2.destroyAllWindows()
